@@ -1,3 +1,6 @@
+massim-server
+.idea
+*.iml
 *.class
 
 # Package Files #
