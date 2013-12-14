@@ -4,55 +4,145 @@ import cz.agents.alite.communication.Message;
 import massim.agent.Action;
 import massim.agent.MASPerception;
 import massim.agent.MASQueenAgent;
+import massim.agent.Position;
+import massim.agent.student.puzzle.ChessBoard;
+import massim.agent.student.puzzle.PuzzleConstants;
+import massim.agent.student.utils.MessageData;
+import massim.agent.student.utils.MessageUtils;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
-/** This example agent illustrates the usage API available in the MASQueenAgent class. */
-public class MyQueenAgent extends MASQueenAgent {
+/**
+ * MAS queen agent implementation using cooperative Asynchronous Backtracking (ABT).
+ */
+public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 
-	// The total number of agents in the system
-	int nAgents;
+	private static final boolean INFO = true, DEBUG = true, VERBOSE = true;
 
+	/** The total number of agents in the system. */
+	private final int size;
+	/** The agents' chessboard. */
+	private final ChessBoard chessBoard;
+
+	/** Meta-data about agents' friends. */
+	private final Map<String, AgentMetadata> friendMetadata;
+
+	/** Current state of the agent. */
+	private AgentState state;
+	/** Current position of the agent. */
+	private Position myPosition;
+	/** A queen assigned to the agent. */
+	private int myQueen;
+
+	/** Constructor of the MyQueenAgent class. */
 	public MyQueenAgent(String host, int port, String username, String password, int nAgents) {
 		super(host, port, username, password);
-		this.nAgents = nAgents;
+		size = nAgents;
+		chessBoard = new ChessBoard(size);
+		friendMetadata = new LinkedHashMap<String, AgentMetadata>(size);
+		state = AgentState.init;
+		myPosition = null;
+		myQueen = INVALID_QUEEN_POSITION;
 	}
 
 	@Override
 	protected Action deliberate(MASPerception percept) {
+		final long t = System.currentTimeMillis();
 
-		// This is how you get the index of the row at which the agent currently stays
-		percept.getPosY();
+		// refresh agents' position
+		myPosition = new Position(percept.getPosX(), percept.getPosY());
 
-		// This is how you process the incoming messages
-		List<Message> newMessages = getNewMessages();
+		processMessages();
 
-		for (Message message : newMessages) {
-			System.out.println("Received a message from " + message.getSender() + " with the content " + message.getContent().toString());
+		// decide the next action
+		final Action action;
+		switch (state) {
+			case init:
+				action = doInit();
+				break;
+			case working:
+			case finished:
+			default:
+				action = Action.SKIP;
 		}
 
-		// This is how you send a message
-		// sendMessage("a1", new StringContent("Hello world"));
+		printVerbose("step=" + percept.getStep() +  " action=" + action + " t=" + (System.currentTimeMillis() - t));
+		return action;
+	}
 
-		// This is how you broadcast a message
-		// broadcast(new StringContent("Hello world"));
+	/** Processing of the messages in agents' inbox. */
+	protected void processMessages() {
+		final List<Message> messages = getNewMessages();
+		for (Message message : messages) {
+			// parse received data
+			MessageData data = MessageUtils.parse(message);
+			String type = data.getType();
+			printDebug("MSG from " + message.getSender() + " [" + type + ": " + data.getData() + "]");
 
-		// This is how you notify us that the agents are finished with computing and moved to to their final position
-		// (every agent should call this method after it is standing at its final position)
-		notifyFinished(true);
+			// retrieve meta-data about the sender (friend agent)
+			AgentMetadata metadata = friendMetadata.get(message.getSender());
+			if (metadata == null) {
+				metadata = new AgentMetadata(message.getSender());
+				friendMetadata.put(message.getSender(), metadata);
+			}
 
-		// In the case there is no valid solution, at least one agent should call the following method
-		notifyFinished(false);
+			// processing of general messages
+			if ("myState".equals(type)) {
+				metadata.state = MessageUtils.getData(data);
+			} else if ("myPosition".equals(type)) {
+				metadata.position = MessageUtils.getData(data);
+			} else if ("myQueen".equals(type)) {
+				metadata.queen = MessageUtils.<Integer>getData(data);
+			}
+		}
+	}
 
-		// You can slow down the deliberation like this.
-
-		try {
-			Thread.sleep(1000);
-		} catch (InterruptedException e) {
+	/** Agent initialization, establish agent hierarchy. */
+	private Action doInit() {
+		if (myQueen == INVALID_QUEEN_POSITION) {
+			// send agents' queen
+			myQueen = myPosition.getY() - 1;
+			broadcast(MessageUtils.create("myQueen", myQueen));
+			broadcast(MessageUtils.create("myPosition", myPosition));
+			printInfo("my queen is " + myQueen);
+		} else {
+			// establish agent hierarchy
+			int count = 0;
+			for (AgentMetadata metadata : friendMetadata.values()) {
+				if (metadata.queen != null) {
+					count++;
+					metadata.isParent = myQueen - 1 == metadata.queen;
+					metadata.isChild = myQueen > metadata.queen;
+				}
+			}
+			if (count == size) {
+				setState(AgentState.working);
+			}
 		}
 
-		// At the end of each deliberation step, you should return one of the following actions:
-		Action[] availableActions = { Action.SKIP, Action.WEST, Action.EAST, Action.NORTH, Action.SOUTH };
-		return availableActions[(int) (Math.random() * (availableActions.length))];
+		return Action.SKIP;
+	}
+
+	/** @param state new state of the agent */
+	protected void setState(AgentState state) {
+		this.state = state;
+		broadcast(MessageUtils.create("myState", state));
+	}
+
+	/** Prints given message to STD-OUT if in INFO mode. */
+	protected void printInfo(String message) {
+		if (INFO) System.out.println(username + ": " + message);
+	}
+
+	/** Prints given message to STD-OUT if in DEBUG mode. */
+	protected void printDebug(String message) {
+		if (DEBUG) System.out.println(username + "(" + state + "): " + message);
+	}
+
+	/** Prints given message to STD-OUT if in VERBOSE mode. */
+	protected void printVerbose(String message) {
+		if (VERBOSE) System.out.println(username + ": " + message);
 	}
 }

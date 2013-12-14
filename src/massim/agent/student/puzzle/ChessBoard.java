@@ -78,8 +78,12 @@ public class ChessBoard implements PuzzleConstants {
 		final StringBuilder sb = new StringBuilder(size + size * size);
 		for (int i = 0; i < size; i++) {
 			char[] row = new char[size];
-			Arrays.fill(row, (queenPositions[i] == INVALID_QUEEN_POSITION) ? '?' : '~');
-			row[queenPositions[i]] = 'Q';
+			if (queenPositions[i] != INVALID_QUEEN_POSITION) {
+				Arrays.fill(row, '~');
+				row[queenPositions[i]] = 'Q';
+			} else {
+				Arrays.fill(row, '?');
+			}
 			sb.append(row).append('\n');
 		}
 		return sb.toString();

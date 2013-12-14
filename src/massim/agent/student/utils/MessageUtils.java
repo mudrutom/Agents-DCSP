@@ -25,7 +25,7 @@ public class MessageUtils {
 		return (MessageData) message.getContent().getData();
 	}
 
-	/** Convince method to get typed data of the message. */
+	/** Convenient method to get typed data of the message. */
 	@SuppressWarnings("unchecked")
 	public static <T> T getData(MessageData messageData) {
 		try {
