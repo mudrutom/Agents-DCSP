@@ -7,6 +7,7 @@ import massim.agent.MASQueenAgent;
 import massim.agent.Position;
 import massim.agent.student.puzzle.ChessBoard;
 import massim.agent.student.puzzle.PuzzleConstants;
+import massim.agent.student.puzzle.Queen;
 import massim.agent.student.utils.MessageData;
 import massim.agent.student.utils.MessageUtils;
 
@@ -19,7 +20,7 @@ import java.util.Map;
  */
 public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 
-	private static final boolean INFO = true, DEBUG = true, VERBOSE = true;
+	private static final boolean INFO = true, DEBUG = true, VERBOSE = false;
 
 	/** The total number of agents in the system. */
 	private final int size;
@@ -34,7 +35,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 	/** Current position of the agent. */
 	private Position myPosition;
 	/** A queen assigned to the agent. */
-	private int myQueen;
+	private Queen myQueen;
 
 	/** Constructor of the MyQueenAgent class. */
 	public MyQueenAgent(String host, int port, String username, String password, int nAgents) {
@@ -44,7 +45,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		friendMetadata = new LinkedHashMap<String, AgentMetadata>(size);
 		state = AgentState.init;
 		myPosition = null;
-		myQueen = INVALID_QUEEN_POSITION;
+		myQueen = null;
 	}
 
 	@Override
@@ -63,6 +64,8 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 				action = doInit();
 				break;
 			case working:
+				action = doAbtWork();
+				break;
 			case finished:
 			default:
 				action = Action.SKIP;
@@ -96,15 +99,45 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			} else if ("myQueen".equals(type)) {
 				metadata.queen = MessageUtils.<Integer>getData(data);
 			}
+
+			processAbtMessage(data, metadata);
+		}
+	}
+
+	/** Sends an <tt>ok?</tt> message. */
+	protected void sendOk(int position) {
+		for (AgentMetadata metadata : friendMetadata.values()) {
+			if (metadata.isChild) {
+				sendMessage(metadata.getName(), MessageUtils.create("ok?", position));
+			}
+		}
+	}
+
+	/** Sends a <tt>noGood</tt> message. */
+	protected void sendNoGood() {
+		for (AgentMetadata metadata : friendMetadata.values()) {
+			if (metadata.isParent) {
+				sendMessage(metadata.getName(), MessageUtils.create("noGood"));
+			}
+		}
+	}
+
+	/** Processing of ABT messages. */
+	private void processAbtMessage(MessageData data, AgentMetadata metadata) {
+		final String type = data.getType();
+		if ("ok?".equals(type)) {
+			chessBoard.setPosition(metadata.queen, MessageUtils.<Integer>getData(data));
+		} else if ("noGood".equals(type)) {
+			myQueen.markUnavailable(myQueen.getPosition());
 		}
 	}
 
 	/** Agent initialization, establish agent hierarchy. */
 	private Action doInit() {
-		if (myQueen == INVALID_QUEEN_POSITION) {
+		if (myQueen == null) {
 			// send agents' queen
-			myQueen = myPosition.getY() - 1;
-			broadcast(MessageUtils.create("myQueen", myQueen));
+			myQueen = new Queen(myPosition.getY() - 1, size);
+			broadcast(MessageUtils.create("myQueen", myQueen.getNumber()));
 			broadcast(MessageUtils.create("myPosition", myPosition));
 			printInfo("my queen is " + myQueen);
 		} else {
@@ -113,16 +146,38 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			for (AgentMetadata metadata : friendMetadata.values()) {
 				if (metadata.queen != null) {
 					count++;
-					metadata.isParent = myQueen - 1 == metadata.queen;
-					metadata.isChild = myQueen > metadata.queen;
+					metadata.isParent = myQueen.isParentQueen(metadata.queen);
+					metadata.isChild = myQueen.isChildQueen(metadata.queen);
 				}
 			}
-			if (count == size) {
+			if (count == size - 1) {
 				setState(AgentState.working);
 			}
 		}
 
 		return Action.SKIP;
+	}
+
+	/** Performs actual coordinated ABT. */
+	private Action doAbtWork() {
+		if (!myQueen.hasPosition()) {
+			// determine the queen position
+			if (myQueen.hasNextPosition()) {
+				final int next = myQueen.getNextPosition();
+				chessBoard.setPosition(myQueen);
+				sendOk(next);
+			} else {
+				sendNoGood();
+				setState(AgentState.finished);
+			}
+		} else {
+			// validate constraints
+			if (!chessBoard.checkConstraints()) {
+				myQueen.markUnavailable(myQueen.getPosition());
+			}
+		}
+
+		return ChessBoard.getAction(myPosition.getX(), myQueen.getPosition());
 	}
 
 	/** @param state new state of the agent */

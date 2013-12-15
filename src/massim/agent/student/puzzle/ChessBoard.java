@@ -1,5 +1,7 @@
 package massim.agent.student.puzzle;
 
+import massim.agent.Action;
+
 import java.util.Arrays;
 
 /**
@@ -23,6 +25,11 @@ public class ChessBoard implements PuzzleConstants {
 	/** Invalidates positions of all the queens. */
 	public void invalidatePositions() {
 		Arrays.fill(queenPositions, INVALID_QUEEN_POSITION);
+	}
+
+	/** Sets position for the given queen. */
+	public void setPosition(Queen queen) {
+		setPosition(queen.getNumber(), queen.getPosition());
 	}
 
 	/** Sets position for the given queen. */
@@ -87,5 +94,10 @@ public class ChessBoard implements PuzzleConstants {
 			sb.append(row).append('\n');
 		}
 		return sb.toString();
+	}
+
+	/** @return an Action to get form one position to the other */
+	public static Action getAction(int fromX, int toX) {
+		return (fromX == toX) ? Action.SKIP : (fromX < toX) ? Action.WEST : Action.EAST;
 	}
 }
