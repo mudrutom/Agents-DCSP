@@ -77,7 +77,7 @@ public class Queen implements PuzzleConstants {
 
 	/** @return <tt>true</tt> IFF given queen is a parent of this queen */
 	public boolean isParentQueen(int queenNumber) {
-		return number - 1 == queenNumber;
+		return number < queenNumber;
 	}
 
 	/** @return <tt>true</tt> IFF given queen is a child of this queen */

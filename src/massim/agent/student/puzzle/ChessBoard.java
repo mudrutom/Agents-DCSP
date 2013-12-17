@@ -60,8 +60,7 @@ public class ChessBoard implements PuzzleConstants {
 							return false;
 						}
 						// check for diagonal constraints
-						int diff = j - i;
-						if (queen == other + diff) {
+						if (queen - i == other - j || queen + i == other + j) {
 							return false;
 						}
 					}

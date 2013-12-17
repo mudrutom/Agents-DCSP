@@ -104,20 +104,20 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		}
 	}
 
-	/** Sends an <tt>ok?</tt> message. */
+	/** Sends an <tt>Ok?</tt> message. */
 	protected void sendOk(int position) {
 		for (AgentMetadata metadata : friendMetadata.values()) {
 			if (metadata.isChild) {
-				sendMessage(metadata.getName(), MessageUtils.create("ok?", position));
+				sendMessage(metadata.getName(), MessageUtils.create("Ok?", position));
 			}
 		}
 	}
 
-	/** Sends a <tt>noGood</tt> message. */
+	/** Sends a <tt>NoGood</tt> message. */
 	protected void sendNoGood() {
 		for (AgentMetadata metadata : friendMetadata.values()) {
 			if (metadata.isParent) {
-				sendMessage(metadata.getName(), MessageUtils.create("noGood"));
+				sendMessage(metadata.getName(), MessageUtils.create("NoGood"));
 			}
 		}
 	}
@@ -125,9 +125,9 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 	/** Processing of ABT messages. */
 	private void processAbtMessage(MessageData data, AgentMetadata metadata) {
 		final String type = data.getType();
-		if ("ok?".equals(type)) {
+		if ("Ok?".equals(type)) {
 			chessBoard.setPosition(metadata.queen, MessageUtils.<Integer>getData(data));
-		} else if ("noGood".equals(type)) {
+		} else if ("NoGood".equals(type)) {
 			myQueen.markUnavailable(myQueen.getPosition());
 		}
 	}
@@ -140,7 +140,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			broadcast(MessageUtils.create("myQueen", myQueen.getNumber()));
 			broadcast(MessageUtils.create("myPosition", myPosition));
 			printInfo("my queen is " + myQueen);
-		} else {
+		} else if (friendMetadata.size() == size - 1) {
 			// establish agent hierarchy
 			int count = 0;
 			for (AgentMetadata metadata : friendMetadata.values()) {
