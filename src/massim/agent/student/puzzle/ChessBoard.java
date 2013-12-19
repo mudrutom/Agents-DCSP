@@ -3,6 +3,8 @@ package massim.agent.student.puzzle;
 import massim.agent.Action;
 
 import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 /**
  * A class representing a chessboard for the N-queen puzzle.
@@ -70,6 +72,30 @@ public class ChessBoard implements PuzzleConstants {
 		return true;
 	}
 
+	/**
+	 * Returns a map of constraint violations for given queen number.
+	 * The map keys correspond to a queen number and values to its position.
+	 */
+	public Map<Integer, Integer> getViolationsForQueen(int n) {
+		validate(n);
+		final Map<Integer, Integer> violations = new LinkedHashMap<Integer, Integer>();
+		final int queen = queenPositions[n];
+		for (int i = 0; i < size; i++) {
+			int other = queenPositions[i];
+			if (i != n && other != INVALID_QUEEN_POSITION) {
+				// column constraints
+				if (queen == other) {
+					violations.put(i, other);
+				}
+				// diagonal constraints
+				if (queen - n == other - i || queen + n == other + i) {
+					violations.put(i, other);
+				}
+			}
+		}
+		return violations;
+	}
+
 	/** Throws an exception if given positions are not valid. */
 	private void validate(int... positions) {
 		for (int position : positions) {
@@ -85,7 +111,7 @@ public class ChessBoard implements PuzzleConstants {
 		for (int i = 0; i < size; i++) {
 			char[] row = new char[size];
 			if (queenPositions[i] != INVALID_QUEEN_POSITION) {
-				Arrays.fill(row, '~');
+				Arrays.fill(row, '-');
 				row[queenPositions[i]] = 'Q';
 			} else {
 				Arrays.fill(row, '?');
