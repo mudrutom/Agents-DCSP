@@ -72,6 +72,15 @@ public class ChessBoard implements PuzzleConstants {
 		return true;
 	}
 
+
+	/**
+	 * Returns a map of constraint violations for given queen.
+	 * The map keys correspond to a queen number and values to its position.
+	 */
+	public Map<Integer, Integer> getViolationsForQueen(Queen queen) {
+		return getViolationsForQueen(queen.getNumber());
+	}
+
 	/**
 	 * Returns a map of constraint violations for given queen number.
 	 * The map keys correspond to a queen number and values to its position.

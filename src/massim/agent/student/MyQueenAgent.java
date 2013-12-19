@@ -114,10 +114,12 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 	}
 
 	/** Sends a <tt>NoGood</tt> message. */
-	protected void sendNoGood() {
+	protected void sendNoGood(Map<Integer, Integer> violations) {
 		for (AgentMetadata metadata : friendMetadata.values()) {
 			if (metadata.isParent) {
-				sendMessage(metadata.getName(), MessageUtils.create("NoGood"));
+				if (violations.containsKey(metadata.queen)) {
+					sendMessage(metadata.getName(), MessageUtils.create("NoGood", violations.get(metadata.queen)));
+				}
 			}
 		}
 	}
@@ -127,8 +129,12 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		final String type = data.getType();
 		if ("Ok?".equals(type)) {
 			chessBoard.setPosition(metadata.queen, MessageUtils.<Integer>getData(data));
+			myQueen.resetDomain();
 		} else if ("NoGood".equals(type)) {
-			myQueen.markUnavailable(myQueen.getPosition());
+			final int pos = MessageUtils.<Integer>getData(data);
+			if (pos == myQueen.getPosition()) {
+				myQueen.markUnavailable(myQueen.getPosition());
+			}
 		}
 	}
 
@@ -160,21 +166,23 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 
 	/** Performs actual coordinated ABT. */
 	private Action doAbtWork() {
-		if (!myQueen.hasPosition()) {
-			// determine the queen position
-			if (myQueen.hasNextPosition()) {
-				final int next = myQueen.getNextPosition();
-				chessBoard.setPosition(myQueen);
-				sendOk(next);
-			} else {
-				sendNoGood();
-				setState(AgentState.finished);
-			}
-		} else {
+		// determine the queen position
+		boolean valid = myQueen.hasPosition() && chessBoard.checkConstraints();
+		for (int i = 0; !valid && myQueen.hasNextPosition() && i < size; i++) {
+			myQueen.nextPosition();
+			chessBoard.setPosition(myQueen);
+
 			// validate constraints
-			if (!chessBoard.checkConstraints()) {
-				myQueen.markUnavailable(myQueen.getPosition());
+			valid = chessBoard.checkConstraints();
+			if (valid) {
+				sendOk(myQueen.getPosition());
 			}
+		}
+
+		// check queens' position
+		if (!myQueen.hasPosition()) {
+			sendNoGood(chessBoard.getViolationsForQueen(myQueen));
+			setState(AgentState.finished);
 		}
 
 		return ChessBoard.getAction(myPosition.getX(), myQueen.getPosition());

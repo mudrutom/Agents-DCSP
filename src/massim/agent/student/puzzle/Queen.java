@@ -62,12 +62,11 @@ public class Queen implements PuzzleConstants {
 		return false;
 	}
 
-	/** @return next available position for the queen if any */
-	public int getNextPosition() {
+	/** Moves the queen to next available position if any. */
+	public int nextPosition() {
 		position = INVALID_QUEEN_POSITION;
 		for (int p = 0, size = domain.length; p < size; p++) {
 			if (domain[p]) {
-				domain[p] = false;
 				position = p;
 				break;
 			}
@@ -83,5 +82,10 @@ public class Queen implements PuzzleConstants {
 	/** @return <tt>true</tt> IFF given queen is a child of this queen */
 	public boolean isChildQueen(int queenNumber) {
 		return number > queenNumber;
+	}
+
+	@Override
+	public String toString() {
+		return String.format("Q%d:%d", number, position);
 	}
 }
