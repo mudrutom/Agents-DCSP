@@ -64,24 +64,24 @@ public class Queen implements PuzzleConstants {
 
 	/** Moves the queen to next available position if any. */
 	public int nextPosition() {
-		position = INVALID_QUEEN_POSITION;
-		for (int p = 0, size = domain.length; p < size; p++) {
-			if (domain[p]) {
-				position = p;
-				break;
-			}
+		final int pos = (position == INVALID_QUEEN_POSITION) ? -1 : position;
+		for (int p = pos + 1, size = domain.length; p < size; p++) {
+			if (domain[p]) return position = p;
+		}
+		for (int p = pos - 1; p >= 0; p--) {
+			if (domain[p]) return position = p;
 		}
 		return position;
 	}
 
 	/** @return <tt>true</tt> IFF given queen is a parent of this queen */
 	public boolean isParentQueen(int queenNumber) {
-		return number < queenNumber;
+		return number == queenNumber + 1;
 	}
 
 	/** @return <tt>true</tt> IFF given queen is a child of this queen */
 	public boolean isChildQueen(int queenNumber) {
-		return number > queenNumber;
+		return number < queenNumber;
 	}
 
 	@Override

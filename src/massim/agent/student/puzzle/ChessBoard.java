@@ -1,10 +1,9 @@
 package massim.agent.student.puzzle;
 
 import massim.agent.Action;
+import massim.agent.student.NoGood;
 
 import java.util.Arrays;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * A class representing a chessboard for the N-queen puzzle.
@@ -72,37 +71,30 @@ public class ChessBoard implements PuzzleConstants {
 		return true;
 	}
 
-
-	/**
-	 * Returns a map of constraint violations for given queen.
-	 * The map keys correspond to a queen number and values to its position.
-	 */
-	public Map<Integer, Integer> getViolationsForQueen(Queen queen) {
-		return getViolationsForQueen(queen.getNumber());
+	/** @return a no-good (constraint violations) for given queen */
+	public NoGood getNoGoodForQueen(Queen queen) {
+		return getNoGoodForQueen(queen.getNumber());
 	}
 
-	/**
-	 * Returns a map of constraint violations for given queen number.
-	 * The map keys correspond to a queen number and values to its position.
-	 */
-	public Map<Integer, Integer> getViolationsForQueen(int n) {
+	/** @return a no-good (constraint violations) for given queen number */
+	public NoGood getNoGoodForQueen(int n) {
 		validate(n);
-		final Map<Integer, Integer> violations = new LinkedHashMap<Integer, Integer>();
+		final NoGood noGood = new NoGood();
 		final int queen = queenPositions[n];
 		for (int i = 0; i < size; i++) {
 			int other = queenPositions[i];
 			if (i != n && other != INVALID_QUEEN_POSITION) {
 				// column constraints
 				if (queen == other) {
-					violations.put(i, other);
+					noGood.setViolation(i, other);
 				}
 				// diagonal constraints
 				if (queen - n == other - i || queen + n == other + i) {
-					violations.put(i, other);
+					noGood.setViolation(i, other);
 				}
 			}
 		}
-		return violations;
+		return noGood;
 	}
 
 	/** Throws an exception if given positions are not valid. */
