@@ -53,7 +53,7 @@ public class NoGood implements PuzzleConstants, Serializable {
 				return false;
 			}
 		}
-		return false;
+		return true;
 	}
 
 	/** Creates and returns new no-good from received no-good. */
@@ -66,5 +66,17 @@ public class NoGood implements PuzzleConstants, Serializable {
 			}
 		}
 		return noGood;
+	}
+
+	@Override
+	public String toString() {
+		final StringBuilder sb = new StringBuilder();
+		sb.append('[');
+		for (Map.Entry<Integer, Integer> entry : noGood.entrySet()) {
+			sb.append('Q').append(entry.getKey()).append('=').append(entry.getValue()).append(", ");
+		}
+		sb.delete(sb.length() - 2, sb.length());
+		sb.append(']');
+		return sb.toString();
 	}
 }

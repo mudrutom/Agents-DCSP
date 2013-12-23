@@ -104,22 +104,20 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		}
 	}
 
-	/** Sends an <tt>Ok?</tt> message. */
-	protected void sendOk(int position) {
+	/** Sends an <tt>Ok?</tt> messages. */
+	protected void sendOk() {
 		for (AgentMetadata metadata : friendMetadata.values()) {
 			if (metadata.isChild) {
-				sendMessage(metadata.getName(), MessageUtils.create("Ok?", position));
+				sendMessage(metadata.getName(), MessageUtils.create("Ok?", myQueen.getPosition()));
 			}
 		}
 	}
 
-	/** Sends a <tt>NoGood</tt> message. */
-	protected void sendNoGood(Map<Integer, Integer> violations) {
+	/** Sends a <tt>NoGood</tt> messages. */
+	protected void sendNoGood(NoGood noGood) {
 		for (AgentMetadata metadata : friendMetadata.values()) {
 			if (metadata.isParent) {
-				if (violations.containsKey(metadata.queen)) {
-					sendMessage(metadata.getName(), MessageUtils.create("NoGood", violations.get(metadata.queen)));
-				}
+				sendMessage(metadata.getName(), MessageUtils.create("NoGood", noGood));
 			}
 		}
 	}
@@ -128,12 +126,17 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 	private void processAbtMessage(MessageData data, AgentMetadata metadata) {
 		final String type = data.getType();
 		if ("Ok?".equals(type)) {
+			// update agents' context
 			chessBoard.setPosition(metadata.queen, MessageUtils.<Integer>getData(data));
-			myQueen.resetDomain();
 		} else if ("NoGood".equals(type)) {
-			final int pos = MessageUtils.<Integer>getData(data);
-			if (pos == myQueen.getPosition()) {
-				myQueen.markUnavailable(myQueen.getPosition());
+			final NoGood noGood = MessageUtils.getData(data);
+			if (noGood.verifyContext(chessBoard)) {
+				if (!noGood.hasViolation(myQueen.getNumber())) {
+					// need to send no-good further
+					sendNoGood(NoGood.createNoGood(myQueen, noGood));
+				} else {
+					myQueen.markUnavailable(noGood.getViolation(myQueen.getNumber()));
+				}
 			}
 		}
 	}
@@ -145,7 +148,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			myQueen = new Queen(myPosition.getY() - 1, size);
 			broadcast(MessageUtils.create("myQueen", myQueen.getNumber()));
 			broadcast(MessageUtils.create("myPosition", myPosition));
-			printInfo("my queen is " + myQueen);
+			printInfo("my queen is Q" + myQueen.getNumber());
 		} else if (friendMetadata.size() == size - 1) {
 			// establish agent hierarchy
 			int count = 0;
@@ -158,6 +161,15 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			}
 			if (count == size - 1) {
 				setState(AgentState.working);
+
+				final StringBuilder parents = new StringBuilder("parents:");
+				final StringBuilder children = new StringBuilder("children:");
+				for (AgentMetadata metadata : friendMetadata.values()) {
+					if (metadata.isParent) parents.append(" Q").append(metadata.queen);
+					if (metadata.isChild) children.append(" Q").append(metadata.queen);
+				}
+				printDebug(parents.toString());
+				printDebug(children.toString());
 			}
 		}
 
@@ -168,24 +180,24 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 	private Action doAbtWork() {
 		// determine the queen position
 		boolean valid = myQueen.hasPosition() && chessBoard.checkConstraints();
-		for (int i = 0; !valid && myQueen.hasNextPosition() && i < size; i++) {
+		for (int i = 0; !valid && i < size; i++) {
 			myQueen.nextPosition();
 			chessBoard.setPosition(myQueen);
 
 			// validate constraints
 			valid = chessBoard.checkConstraints();
 			if (valid) {
-				sendOk(myQueen.getPosition());
+				sendOk();
 			}
 		}
 
 		// check queens' position
-		if (!myQueen.hasPosition()) {
-			sendNoGood(chessBoard.getViolationsForQueen(myQueen));
-			setState(AgentState.finished);
+		if (!valid) {
+			sendNoGood(chessBoard.getNoGoodForQueen(myQueen));
+			chessBoard.setPosition(myQueen.getNumber() - 1, INVALID_QUEEN_POSITION);
 		}
 
-		return ChessBoard.getAction(myPosition.getX(), myQueen.getPosition());
+		return ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() + 1);
 	}
 
 	/** @param state new state of the agent */
@@ -201,7 +213,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 
 	/** Prints given message to STD-OUT if in DEBUG mode. */
 	protected void printDebug(String message) {
-		if (DEBUG) System.out.println(username + "(" + state + "): " + message);
+		if (DEBUG) System.out.println(username + "(" + myQueen + "): " + message);
 	}
 
 	/** Prints given message to STD-OUT if in VERBOSE mode. */
