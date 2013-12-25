@@ -12,6 +12,7 @@ import massim.agent.student.utils.MessageData;
 import massim.agent.student.utils.MessageUtils;
 
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
@@ -29,6 +30,8 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 
 	/** Meta-data about agents' friends. */
 	private final Map<String, AgentMetadata> friendMetadata;
+	/** The no-good store of the agent. */
+	private final Map<Integer, NoGood> noGoodStore;
 
 	/** Current state of the agent. */
 	private AgentState state;
@@ -43,6 +46,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		size = nAgents;
 		chessBoard = new ChessBoard(size);
 		friendMetadata = new LinkedHashMap<String, AgentMetadata>(size);
+		noGoodStore = new LinkedHashMap<Integer, NoGood>(size);
 		state = AgentState.init;
 		myPosition = null;
 		myQueen = null;
@@ -66,6 +70,9 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			case working:
 				action = doAbtWork();
 				break;
+			case idle:
+				action = ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() - 1);
+				break;
 			case finished:
 			default:
 				action = Action.SKIP;
@@ -81,8 +88,6 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		for (Message message : messages) {
 			// parse received data
 			MessageData data = MessageUtils.parse(message);
-			String type = data.getType();
-			printDebug("MSG from " + message.getSender() + " [" + type + ": " + data.getData() + "]");
 
 			// retrieve meta-data about the sender (friend agent)
 			AgentMetadata metadata = friendMetadata.get(message.getSender());
@@ -91,10 +96,11 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 				friendMetadata.put(message.getSender(), metadata);
 			}
 
+			String type = data.getType();
+			printDebug("MSG from Q" + ((metadata.queen == null) ? "?" : metadata.queen) + " [" + type + ": " + data.getData() + "]");
+
 			// processing of general messages
-			if ("myState".equals(type)) {
-				metadata.state = MessageUtils.getData(data);
-			} else if ("myPosition".equals(type)) {
+			if ("myPosition".equals(type)) {
 				metadata.position = MessageUtils.getData(data);
 			} else if ("myQueen".equals(type)) {
 				metadata.queen = MessageUtils.<Integer>getData(data);
@@ -118,6 +124,9 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		for (AgentMetadata metadata : friendMetadata.values()) {
 			if (metadata.isParent) {
 				sendMessage(metadata.getName(), MessageUtils.create("NoGood", noGood));
+
+				// invalidate value of the parent
+				chessBoard.setPosition(metadata.queen, INVALID_QUEEN_POSITION);
 			}
 		}
 	}
@@ -128,15 +137,16 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		if ("Ok?".equals(type)) {
 			// update agents' context
 			chessBoard.setPosition(metadata.queen, MessageUtils.<Integer>getData(data));
+			state = AgentState.working;
 		} else if ("NoGood".equals(type)) {
+			// verify received no-good
 			final NoGood noGood = MessageUtils.getData(data);
 			if (noGood.verifyContext(chessBoard)) {
-				if (!noGood.hasViolation(myQueen.getNumber())) {
-					// need to send no-good further
-					sendNoGood(NoGood.createNoGood(myQueen, noGood));
-				} else {
-					myQueen.markUnavailable(noGood.getViolation(myQueen.getNumber()));
-				}
+				// apply the no-good
+				final int violation = noGood.getViolation(myQueen.getNumber());
+				myQueen.markUnavailable(violation);
+				noGoodStore.put(violation, noGood.createNoGoodForQueen(myQueen));
+				state = AgentState.working;
 			}
 		}
 	}
@@ -146,9 +156,8 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		if (myQueen == null) {
 			// send agents' queen
 			myQueen = new Queen(myPosition.getY() - 1, size);
-			broadcast(MessageUtils.create("myQueen", myQueen.getNumber()));
-			broadcast(MessageUtils.create("myPosition", myPosition));
 			printInfo("my queen is Q" + myQueen.getNumber());
+			broadcast(MessageUtils.create("myQueen", myQueen.getNumber()));
 		} else if (friendMetadata.size() == size - 1) {
 			// establish agent hierarchy
 			int count = 0;
@@ -160,8 +169,9 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 				}
 			}
 			if (count == size - 1) {
-				setState(AgentState.working);
+				state = AgentState.working;
 
+				// print agent hierarchy
 				final StringBuilder parents = new StringBuilder("parents:");
 				final StringBuilder children = new StringBuilder("children:");
 				for (AgentMetadata metadata : friendMetadata.values()) {
@@ -170,6 +180,8 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 				}
 				printDebug(parents.toString());
 				printDebug(children.toString());
+
+				broadcast(MessageUtils.create("myPosition", myPosition));
 			}
 		}
 
@@ -178,9 +190,21 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 
 	/** Performs actual coordinated ABT. */
 	private Action doAbtWork() {
+		// check the agent view, find & remove invalid no-goods
+		final List<Integer> available = new LinkedList<Integer>();
+		for (Map.Entry<Integer, NoGood> entry : noGoodStore.entrySet()) {
+			if (!entry.getValue().verifyContext(chessBoard)) {
+				available.add(entry.getKey());
+			}
+		}
+		for (Integer value : available) {
+			noGoodStore.remove(value);
+			myQueen.markAvailable(value);
+		}
+
 		// determine the queen position
 		boolean valid = myQueen.hasPosition() && chessBoard.checkConstraints();
-		for (int i = 0; !valid && i < size; i++) {
+		for (int i = 0; !valid && i <= size && myQueen.hasNextPosition(); i++) {
 			myQueen.nextPosition();
 			chessBoard.setPosition(myQueen);
 
@@ -191,19 +215,15 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			}
 		}
 
-		// check queens' position
 		if (!valid) {
-			sendNoGood(chessBoard.getNoGoodForQueen(myQueen));
-			chessBoard.setPosition(myQueen.getNumber() - 1, INVALID_QUEEN_POSITION);
+			// send no-good if unfeasible
+			final NoGood noGood = chessBoard.getNoGoodForQueen(myQueen);
+			printDebug("sending no-good " + noGood + "\n" + chessBoard);
+			sendNoGood(noGood);
 		}
 
-		return ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() + 1);
-	}
-
-	/** @param state new state of the agent */
-	protected void setState(AgentState state) {
-		this.state = state;
-		broadcast(MessageUtils.create("myState", state));
+		state = AgentState.idle;
+		return ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() - 1);
 	}
 
 	/** Prints given message to STD-OUT if in INFO mode. */
