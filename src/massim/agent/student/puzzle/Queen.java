@@ -1,11 +1,14 @@
 package massim.agent.student.puzzle;
 
+import java.io.Serializable;
 import java.util.Arrays;
 
 /**
  * A class representing a queen at the chessboard.
  */
-public class Queen implements PuzzleConstants {
+public class Queen implements PuzzleConstants, Serializable {
+
+	private static final long serialVersionUID = -5231646753847234315L;
 
 	/** The number or row of the queen. */
 	private final int number;
@@ -18,6 +21,8 @@ public class Queen implements PuzzleConstants {
 
 	/** Constructor of the Queen class. */
 	public Queen(int number, int chessboardSize) {
+		if (chessboardSize < 1) throw new IllegalArgumentException("chessboardSize=" + chessboardSize);
+		if (number >= chessboardSize) throw new IllegalArgumentException("number=" + number);
 		this.number = number;
 		domain = new boolean[chessboardSize];
 		position = INVALID_QUEEN_POSITION;
@@ -40,6 +45,15 @@ public class Queen implements PuzzleConstants {
 			if (p >= 0 && p < domain.length) {
 				domain[p] = false;
 				position = (position == p) ? INVALID_QUEEN_POSITION : position;
+			}
+		}
+	}
+
+	/** Marks given positions as available. */
+	public void markAvailable(int... positions) {
+		for (int p : positions) {
+			if (p >= 0 && p < domain.length) {
+				domain[p] = true;
 			}
 		}
 	}

@@ -56,16 +56,16 @@ public class NoGood implements PuzzleConstants, Serializable {
 		return true;
 	}
 
-	/** Creates and returns new no-good from received no-good. */
-	public static NoGood createNoGood(Queen queen, NoGood receivedNoGood) {
+	/** @return new no-good from this no-good for given queen */
+	public NoGood createNoGoodForQueen(Queen queen) {
 		final int queenNumber = queen.getNumber();
-		final NoGood noGood = new NoGood();
-		for (Map.Entry<Integer, Integer> entry : receivedNoGood.noGood.entrySet()) {
+		final NoGood newNoGood = new NoGood();
+		for (Map.Entry<Integer, Integer> entry : noGood.entrySet()) {
 			if (entry.getKey() != queenNumber) {
-				noGood.setViolation(entry.getKey(), entry.getValue());
+				newNoGood.setViolation(entry.getKey(), entry.getValue());
 			}
 		}
-		return noGood;
+		return newNoGood;
 	}
 
 	@Override
@@ -75,7 +75,9 @@ public class NoGood implements PuzzleConstants, Serializable {
 		for (Map.Entry<Integer, Integer> entry : noGood.entrySet()) {
 			sb.append('Q').append(entry.getKey()).append('=').append(entry.getValue()).append(", ");
 		}
-		sb.delete(sb.length() - 2, sb.length());
+		if (sb.length() > 1) {
+			sb.delete(sb.length() - 2, sb.length());
+		}
 		sb.append(']');
 		return sb.toString();
 	}

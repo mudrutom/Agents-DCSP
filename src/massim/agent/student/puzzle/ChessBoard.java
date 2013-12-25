@@ -3,12 +3,15 @@ package massim.agent.student.puzzle;
 import massim.agent.Action;
 import massim.agent.student.NoGood;
 
+import java.io.Serializable;
 import java.util.Arrays;
 
 /**
  * A class representing a chessboard for the N-queen puzzle.
  */
-public class ChessBoard implements PuzzleConstants {
+public class ChessBoard implements PuzzleConstants, Serializable {
+
+	private static final long serialVersionUID = -5399907655370283013L;
 
 	/** The size of the chess board. */
 	private final int size;
@@ -18,6 +21,7 @@ public class ChessBoard implements PuzzleConstants {
 
 	/** Constructor of the ChessBoard class. */
 	public ChessBoard(int size) {
+		if (size < 1) throw new IllegalArgumentException("size=" + size);
 		this.size = size;
 		queenPositions = new int[size];
 		invalidatePositions();
@@ -71,27 +75,19 @@ public class ChessBoard implements PuzzleConstants {
 		return true;
 	}
 
-	/** @return a no-good (constraint violations) for given queen */
+	/** @return a no-good (chessboard state) for given queen */
 	public NoGood getNoGoodForQueen(Queen queen) {
 		return getNoGoodForQueen(queen.getNumber());
 	}
 
-	/** @return a no-good (constraint violations) for given queen number */
+	/** @return a no-good (chessboard state) for given queen number */
 	public NoGood getNoGoodForQueen(int n) {
 		validate(n);
 		final NoGood noGood = new NoGood();
-		final int queen = queenPositions[n];
 		for (int i = 0; i < size; i++) {
-			int other = queenPositions[i];
-			if (i != n && other != INVALID_QUEEN_POSITION) {
-				// column constraints
-				if (queen == other) {
-					noGood.setViolation(i, other);
-				}
-				// diagonal constraints
-				if (queen - n == other - i || queen + n == other + i) {
-					noGood.setViolation(i, other);
-				}
+			int queen = queenPositions[i];
+			if (i != n && queen != INVALID_QUEEN_POSITION) {
+				noGood.setViolation(i, queen);
 			}
 		}
 		return noGood;
@@ -119,6 +115,7 @@ public class ChessBoard implements PuzzleConstants {
 			}
 			sb.append(row).append('\n');
 		}
+		sb.delete(sb.length() - 1, sb.length());
 		return sb.toString();
 	}
 
