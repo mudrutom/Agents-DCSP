@@ -16,7 +16,7 @@ public class NoGood implements PuzzleConstants, Serializable {
 	private static final long serialVersionUID = 1219419392599087008L;
 
 	/**
-	 * The no-good, a map of constraint violations. The map keys
+	 * The no-good, a map of positions assigned to queens. The map keys
 	 * correspond to a queen number and values to its position.
 	 */
 	private final Map<Integer, Integer> noGood;
@@ -31,18 +31,18 @@ public class NoGood implements PuzzleConstants, Serializable {
 		return noGood.isEmpty();
 	}
 
-	/** @return <tt>true</tt> IFF given queen is violating any constraint */
-	public boolean hasViolation(int queen) {
+	/** @return <tt>true</tt> IFF given queen has assigned position */
+	public boolean hasPosition(int queen) {
 		return noGood.containsKey(queen);
 	}
 
-	/** @return a value causing constraint violation for given queen */
-	public int getViolation(int queen) {
+	/** @return a position assigned to given queen if any */
+	public int getPosition(int queen) {
 		return noGood.containsKey(queen) ? noGood.get(queen) : INVALID_QUEEN_POSITION;
 	}
 
-	/** Sets a constraint violation for given queen. */
-	public void setViolation(int queen, int position) {
+	/** Assigns a position for given queen. */
+	public void setPosition(int queen, int position) {
 		noGood.put(queen, position);
 	}
 
@@ -56,13 +56,13 @@ public class NoGood implements PuzzleConstants, Serializable {
 		return true;
 	}
 
-	/** @return new no-good from this no-good for given queen */
+	/** @return new no-good using this no-good for given queen */
 	public NoGood createNoGoodForQueen(Queen queen) {
 		final int queenNumber = queen.getNumber();
 		final NoGood newNoGood = new NoGood();
 		for (Map.Entry<Integer, Integer> entry : noGood.entrySet()) {
 			if (entry.getKey() != queenNumber) {
-				newNoGood.setViolation(entry.getKey(), entry.getValue());
+				newNoGood.setPosition(entry.getKey(), entry.getValue());
 			}
 		}
 		return newNoGood;

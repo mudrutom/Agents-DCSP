@@ -10,6 +10,9 @@ public class AgentMetadata implements PuzzleConstants {
 
 	private final String name;
 
+	/** Agents' state. */
+	public AgentState state;
+
 	/** Agents' number. */
 	public Integer queen;
 

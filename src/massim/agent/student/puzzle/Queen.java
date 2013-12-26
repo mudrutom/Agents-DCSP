@@ -78,11 +78,9 @@ public class Queen implements PuzzleConstants, Serializable {
 
 	/** Moves the queen to next available position if any. */
 	public int nextPosition() {
-		final int pos = (position == INVALID_QUEEN_POSITION) ? -1 : position;
-		for (int p = pos + 1, size = domain.length; p < size; p++) {
-			if (domain[p]) return position = p;
-		}
-		for (int p = pos - 1; p >= 0; p--) {
+		final int size = domain.length;
+		final int pos = (position == INVALID_QUEEN_POSITION || position == size - 1) ? -1 : position;
+		for (int p = pos + 1; p < size; p++) {
 			if (domain[p]) return position = p;
 		}
 		return position;

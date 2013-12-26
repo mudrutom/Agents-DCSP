@@ -47,7 +47,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		chessBoard = new ChessBoard(size);
 		friendMetadata = new LinkedHashMap<String, AgentMetadata>(size);
 		noGoodStore = new LinkedHashMap<Integer, NoGood>(size);
-		state = AgentState.init;
+		state = AgentState.initI;
 		myPosition = null;
 		myQueen = null;
 	}
@@ -64,14 +64,15 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		// decide the next action
 		final Action action;
 		switch (state) {
-			case init:
+			case initI:
+			case initII:
 				action = doInit();
 				break;
 			case working:
 				action = doAbtWork();
 				break;
 			case idle:
-				action = ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() - 1);
+				action = ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() + 1);
 				break;
 			case finished:
 			default:
@@ -100,7 +101,9 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			printDebug("MSG from Q" + ((metadata.queen == null) ? "?" : metadata.queen) + " [" + type + ": " + data.getData() + "]");
 
 			// processing of general messages
-			if ("myPosition".equals(type)) {
+			if ("myState".equals(type)) {
+				metadata.state = MessageUtils.getData(data);
+			} else if ("myPosition".equals(type)) {
 				metadata.position = MessageUtils.getData(data);
 			} else if ("myQueen".equals(type)) {
 				metadata.queen = MessageUtils.<Integer>getData(data);
@@ -124,9 +127,6 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		for (AgentMetadata metadata : friendMetadata.values()) {
 			if (metadata.isParent) {
 				sendMessage(metadata.getName(), MessageUtils.create("NoGood", noGood));
-
-				// invalidate value of the parent
-				chessBoard.setPosition(metadata.queen, INVALID_QUEEN_POSITION);
 			}
 		}
 	}
@@ -143,9 +143,9 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			final NoGood noGood = MessageUtils.getData(data);
 			if (noGood.verifyContext(chessBoard)) {
 				// apply the no-good
-				final int violation = noGood.getViolation(myQueen.getNumber());
-				myQueen.markUnavailable(violation);
-				noGoodStore.put(violation, noGood.createNoGoodForQueen(myQueen));
+				final int position = noGood.getPosition(myQueen.getNumber());
+				myQueen.markUnavailable(position);
+				noGoodStore.put(position, noGood.createNoGoodForQueen(myQueen));
 				state = AgentState.working;
 			}
 		}
@@ -158,30 +158,40 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 			myQueen = new Queen(myPosition.getY() - 1, size);
 			printInfo("my queen is Q" + myQueen.getNumber());
 			broadcast(MessageUtils.create("myQueen", myQueen.getNumber()));
+			broadcast(MessageUtils.create("myPosition", myPosition));
 		} else if (friendMetadata.size() == size - 1) {
-			// establish agent hierarchy
-			int count = 0;
-			for (AgentMetadata metadata : friendMetadata.values()) {
-				if (metadata.queen != null) {
-					count++;
-					metadata.isParent = myQueen.isParentQueen(metadata.queen);
-					metadata.isChild = myQueen.isChildQueen(metadata.queen);
-				}
-			}
-			if (count == size - 1) {
-				state = AgentState.working;
-
-				// print agent hierarchy
-				final StringBuilder parents = new StringBuilder("parents:");
-				final StringBuilder children = new StringBuilder("children:");
+			if (state == AgentState.initI) {
+				// establish agent hierarchy
+				int count = 0;
 				for (AgentMetadata metadata : friendMetadata.values()) {
-					if (metadata.isParent) parents.append(" Q").append(metadata.queen);
-					if (metadata.isChild) children.append(" Q").append(metadata.queen);
+					if (metadata.queen != null) {
+						metadata.isParent = myQueen.isParentQueen(metadata.queen);
+						metadata.isChild = myQueen.isChildQueen(metadata.queen);
+						count++;
+					}
 				}
-				printDebug(parents.toString());
-				printDebug(children.toString());
+				if (count == size - 1) {
+					// print agent hierarchy
+					final StringBuilder parents = new StringBuilder("parents:");
+					final StringBuilder children = new StringBuilder("children:");
+					for (AgentMetadata metadata : friendMetadata.values()) {
+						if (metadata.isParent) parents.append(" Q").append(metadata.queen);
+						if (metadata.isChild) children.append(" Q").append(metadata.queen);
+					}
+					printDebug(parents.toString());
+					printDebug(children.toString());
 
-				broadcast(MessageUtils.create("myPosition", myPosition));
+					state = AgentState.initII;
+					broadcast(MessageUtils.create("myState", AgentState.working));
+				}
+			} else {
+				int count = 0;
+				for (AgentMetadata metadata : friendMetadata.values()) {
+					if (metadata.state == AgentState.working) count++;
+				}
+				if (count == size - 1) {
+					state = AgentState.working;
+				}
 			}
 		}
 
@@ -223,7 +233,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		}
 
 		state = AgentState.idle;
-		return ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() - 1);
+		return ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() + 1);
 	}
 
 	/** Prints given message to STD-OUT if in INFO mode. */

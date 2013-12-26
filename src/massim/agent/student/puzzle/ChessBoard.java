@@ -87,7 +87,7 @@ public class ChessBoard implements PuzzleConstants, Serializable {
 		for (int i = 0; i < size; i++) {
 			int queen = queenPositions[i];
 			if (i != n && queen != INVALID_QUEEN_POSITION) {
-				noGood.setViolation(i, queen);
+				noGood.setPosition(i, queen);
 			}
 		}
 		return noGood;
@@ -121,6 +121,6 @@ public class ChessBoard implements PuzzleConstants, Serializable {
 
 	/** @return an Action to get form one position to the other */
 	public static Action getAction(int fromX, int toX) {
-		return (fromX == toX) ? Action.SKIP : (fromX < toX) ? Action.WEST : Action.EAST;
+		return (fromX == toX) ? Action.SKIP : (fromX > toX) ? Action.WEST : Action.EAST;
 	}
 }
