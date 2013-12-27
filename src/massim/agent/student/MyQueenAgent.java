@@ -72,7 +72,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 				action = doAbtWork();
 				break;
 			case idle:
-				action = ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() + 1);
+				action = getNextAction();
 				break;
 			case finished:
 			default:
@@ -185,6 +185,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 					broadcast(MessageUtils.create("myState", AgentState.working));
 				}
 			} else {
+				// start working when all other agents are also ready
 				int count = 0;
 				for (AgentMetadata metadata : friendMetadata.values()) {
 					if (metadata.state == AgentState.working) count++;
@@ -198,34 +199,40 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		return Action.SKIP;
 	}
 
-	/** Performs actual coordinated ABT. */
+	/** Performs actual coordinated ABT (check of the agent view). */
 	private Action doAbtWork() {
-		// check the agent view, find & remove invalid no-goods
-		final List<Integer> available = new LinkedList<Integer>();
+		// find & remove invalid no-goods
+		final List<Integer> nowAvailable = new LinkedList<Integer>();
 		for (Map.Entry<Integer, NoGood> entry : noGoodStore.entrySet()) {
 			if (!entry.getValue().verifyContext(chessBoard)) {
-				available.add(entry.getKey());
+				// context is no longer valid
+				nowAvailable.add(entry.getKey());
 			}
 		}
-		for (Integer value : available) {
+		for (Integer value : nowAvailable) {
 			noGoodStore.remove(value);
 			myQueen.markAvailable(value);
 		}
 
 		// determine the queen position
 		boolean valid = myQueen.hasPosition() && chessBoard.checkConstraints();
-		for (int i = 0; !valid && i <= size && myQueen.hasNextPosition(); i++) {
-			myQueen.nextPosition();
-			chessBoard.setPosition(myQueen);
+		if (!valid && myQueen.hasNextPosition()) {
+			for (int i = 0; i <= size; i++) {
+				myQueen.nextPosition();
+				chessBoard.setPosition(myQueen);
 
-			// validate constraints
-			valid = chessBoard.checkConstraints();
-			if (valid) {
-				sendOk();
+				// validate constraints
+				valid = myQueen.hasPosition() && chessBoard.checkConstraints();
+				if (valid) {
+					sendOk();
+					break;
+				}
 			}
 		}
 
 		if (!valid) {
+			myQueen.invalidate();
+
 			// send no-good if unfeasible
 			final NoGood noGood = chessBoard.getNoGoodForQueen(myQueen);
 			printDebug("sending no-good " + noGood + "\n" + chessBoard);
@@ -233,6 +240,11 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		}
 
 		state = AgentState.idle;
+		return getNextAction();
+	}
+
+	/** @return next action for the agent */
+	private Action getNextAction() {
 		return ChessBoard.getAction(myPosition.getX(), myQueen.getPosition() + 1);
 	}
 

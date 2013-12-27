@@ -18,6 +18,8 @@ public class Queen implements PuzzleConstants, Serializable {
 
 	/** Current position of the queen. */
 	private int position;
+	/** Previous position of the queen. */
+	private int previous;
 
 	/** Constructor of the Queen class. */
 	public Queen(int number, int chessboardSize) {
@@ -25,8 +27,8 @@ public class Queen implements PuzzleConstants, Serializable {
 		if (number >= chessboardSize) throw new IllegalArgumentException("number=" + number);
 		this.number = number;
 		domain = new boolean[chessboardSize];
-		position = INVALID_QUEEN_POSITION;
-		resetDomain();
+		Arrays.fill(domain, true);
+		invalidate();
 	}
 
 	/** @return the number of the queen */
@@ -34,9 +36,10 @@ public class Queen implements PuzzleConstants, Serializable {
 		return number;
 	}
 
-	/** Resets the domain (possible positions) of the queen. */
-	public void resetDomain() {
-		Arrays.fill(domain, true);
+	/** Invalidates position of the queen. */
+	public void invalidate() {
+		position = INVALID_QUEEN_POSITION;
+		previous = INVALID_QUEEN_POSITION;
 	}
 
 	/** Marks given positions as unavailable. */
@@ -79,10 +82,29 @@ public class Queen implements PuzzleConstants, Serializable {
 	/** Moves the queen to next available position if any. */
 	public int nextPosition() {
 		final int size = domain.length;
-		final int pos = (position == INVALID_QUEEN_POSITION || position == size - 1) ? -1 : position;
-		for (int p = pos + 1; p < size; p++) {
-			if (domain[p]) return position = p;
+		final int prev = previous;
+		previous = position;
+
+		if (prev <= position) {
+			// search forward first
+			final int pos = (position == INVALID_QUEEN_POSITION) ? -1 : position;
+			for (int p = pos + 1; p < size; p++) {
+				if (domain[p]) return position = p;
+			}
+			for (int p = pos - 1; p >= 0; p--) {
+				if (domain[p]) return position = p;
+			}
+		} else {
+			// search backward first
+			final int pos = (position == INVALID_QUEEN_POSITION) ? size : position;
+			for (int p = pos - 1; p >= 0; p--) {
+				if (domain[p]) return position = p;
+			}
+			for (int p = pos + 1; p < size; p++) {
+				if (domain[p]) return position = p;
+			}
 		}
+
 		return position;
 	}
 
