@@ -21,7 +21,10 @@ import java.util.Map;
  */
 public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 
-	private static final boolean INFO = true, DEBUG = true, VERBOSE = false;
+	private static final boolean INFO = true, DEBUG = false, VERBOSE = false;
+
+	/** Threshold used in termination detection. */
+	private static final int TERMINATION_IDLE_THRESHOLD = 10;
 
 	/** The total number of agents in the system. */
 	private final int size;
@@ -40,6 +43,9 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 	/** A queen assigned to the agent. */
 	private Queen myQueen;
 
+	/** Counters used for termination detection. */
+	private int messageCounter, idleCounter;
+
 	/** Constructor of the MyQueenAgent class. */
 	public MyQueenAgent(String host, int port, String username, String password, int nAgents) {
 		super(host, port, username, password);
@@ -50,6 +56,8 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		state = AgentState.initI;
 		myPosition = null;
 		myQueen = null;
+		messageCounter = 0;
+		idleCounter = 0;
 	}
 
 	@Override
@@ -69,9 +77,12 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 				action = doInit();
 				break;
 			case working:
+				idleCounter = 0;
 				action = doAbtWork();
 				break;
 			case idle:
+				idleCounter++;
+				detectTermination();
 				action = getNextAction();
 				break;
 			case finished:
@@ -118,6 +129,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		for (AgentMetadata metadata : friendMetadata.values()) {
 			if (metadata.isChild) {
 				sendMessage(metadata.getName(), MessageUtils.create("Ok?", myQueen.getPosition()));
+				messageCounter++;
 			}
 		}
 	}
@@ -127,17 +139,24 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		for (AgentMetadata metadata : friendMetadata.values()) {
 			if (metadata.isParent) {
 				sendMessage(metadata.getName(), MessageUtils.create("NoGood", noGood));
+				messageCounter++;
 			}
 		}
 	}
 
 	/** Processing of ABT messages. */
 	private void processAbtMessage(MessageData data, AgentMetadata metadata) {
+		if (state != AgentState.idle && state != AgentState.working) {
+			// process ABT messages only if idle or working
+			return;
+		}
+
 		final String type = data.getType();
 		if ("Ok?".equals(type)) {
 			// update agents' context
 			chessBoard.setPosition(metadata.queen, MessageUtils.<Integer>getData(data));
 			state = AgentState.working;
+			messageCounter--;
 		} else if ("NoGood".equals(type)) {
 			// verify received no-good
 			final NoGood noGood = MessageUtils.getData(data);
@@ -148,13 +167,21 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 				noGoodStore.put(position, noGood.createNoGoodForQueen(myQueen));
 				state = AgentState.working;
 			}
+			messageCounter--;
+		} else if ("token".equals(type)) {
+			// process termination token
+			final TerminationToken token = MessageUtils.getData(data);
+			processTerminationToken(token);
+		} else if ("terminate".equals(type)) {
+			// terminate the algorithm
+			terminateABT(MessageUtils.<Boolean>getData(data));
 		}
 	}
 
 	/** Agent initialization, establish agent hierarchy. */
 	private Action doInit() {
 		if (myQueen == null) {
-			// send agents' queen
+			// determine agents' queen
 			myQueen = new Queen(myPosition.getY() - 1, size);
 			printInfo("my queen is Q" + myQueen.getNumber());
 			broadcast(MessageUtils.create("myQueen", myQueen.getNumber()));
@@ -235,12 +262,61 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 
 			// send no-good if unfeasible
 			final NoGood noGood = chessBoard.getNoGoodForQueen(myQueen);
-			printDebug("sending no-good " + noGood + "\n" + chessBoard);
-			sendNoGood(noGood);
+			if (!noGood.isEmpty()) {
+				printDebug("sending no-good " + noGood + "\n" + chessBoard);
+				sendNoGood(noGood);
+			} else {
+				// empty no-good, there is no solution
+				broadcast(MessageUtils.create("terminate", false));
+				terminateABT(false);
+			}
 		}
 
 		state = AgentState.idle;
 		return getNextAction();
+	}
+
+	/** Performs ABT termination detection. */
+	private void detectTermination() {
+		final boolean isInitiatorAgent = myQueen.getNumber() == size - 1;
+		if (isInitiatorAgent && idleCounter > TERMINATION_IDLE_THRESHOLD) {
+			// possible silence in the network, send new token
+			final String[] agentSequence = new String[size];
+			agentSequence[myQueen.getNumber()] = username;
+			for (AgentMetadata metadata : friendMetadata.values()) {
+				agentSequence[metadata.queen] = metadata.getName();
+			}
+			final TerminationToken token = new TerminationToken(this, agentSequence);
+			token.incrementCounter(messageCounter);
+			sendMessage(token.getNextAgent(this), MessageUtils.create("token", token));
+		}
+	}
+
+	/** Processing of received termination tokens. */
+	private void processTerminationToken(TerminationToken token) {
+		if (idleCounter > TERMINATION_IDLE_THRESHOLD) {
+			// only process tokens if idle
+			if (token.isInitiator(this)) {
+				// the token has returned
+				if (token.getMessageCounter() == 0) {
+					// termination detected
+					broadcast(MessageUtils.create("terminate", true));
+					terminateABT(true);
+				}
+			} else {
+				// send the token further
+				token.incrementCounter(messageCounter);
+				sendMessage(token.getNextAgent(this), MessageUtils.create("token", token));
+			}
+		}
+	}
+
+	/** Terminates the ABT algorithm. */
+	private void terminateABT(boolean success) {
+		notifyFinished(success);
+		printInfo(success ? "the problem solution found" : "the problem has no solution");
+		broadcast(MessageUtils.create("myState", AgentState.finished));
+		state = AgentState.finished;
 	}
 
 	/** @return next action for the agent */
