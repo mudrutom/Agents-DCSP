@@ -10,7 +10,7 @@ import java.util.LinkedList;
 
 public class StartAgents {
 
-	final static int N_AGENTS = 4;
+	final static int N_AGENTS = 8;
 
 	public static void main(String[] args) {
 		startAgents("localhost", 12300, N_AGENTS);

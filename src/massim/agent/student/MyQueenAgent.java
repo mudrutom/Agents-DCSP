@@ -87,7 +87,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 				break;
 			case finished:
 			default:
-				action = Action.SKIP;
+				action = getNextAction();
 		}
 
 		printVerbose("step=" + percept.getStep() +  " action=" + action + " t=" + (System.currentTimeMillis() - t));
@@ -316,6 +316,7 @@ public class MyQueenAgent extends MASQueenAgent implements PuzzleConstants {
 		notifyFinished(success);
 		printInfo(success ? "the problem solution found" : "the problem has no solution");
 		broadcast(MessageUtils.create("myState", AgentState.finished));
+		broadcast(MessageUtils.create("myPosition", myPosition));
 		state = AgentState.finished;
 	}
 
